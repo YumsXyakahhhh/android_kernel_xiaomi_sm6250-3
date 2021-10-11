@@ -1,43 +1,95 @@
-export PATH="$HOME/proton/bin:$PATH"
-SECONDS=0
-ZIPNAME="Etherious-miatoll-$(date '+%Y%m%d').zip"
+#!/usr/bin/env bash
+echo "Downloading few Dependecies . . ."
+git clone --depth=1 $kernel_source $device_codename
+git clone --depth=1 https://github.com/xyz-prjkt/xRageTC-clang clang
 
-if ! [ -d "$HOME/proton" ]; then
-echo "Proton clang not found! Cloning..."
-if ! git clone -q https://github.com/kdrag0n/proton-clang --depth=1 --single-branch ~/proton; then
-echo "Cloning failed! Aborting..."
-exit 1
-fi
-fi
+# Main
+KERNEL_NAME=PPQ # IMPORTANT ! Declare your kernel name
+KERNEL_ROOTDIR=$(pwd)/JOYEUSE # IMPORTANT ! Fill with your kernel source root directory.
+DEVICE_CODENAME=JOYEUSE # IMPORTANT ! Declare your device codename
+DEVICE_DEFCONFIG=cust_defconfig # IMPORTANT ! Declare your kernel source defconfig file here.
+CLANG_ROOTDIR=$(pwd)/clang # IMPORTANT! Put your clang directory here.
+export KBUILD_BUILD_USER=BGS # Change with your own name or else.
+export KBUILD_BUILD_HOST=XMIKASA # Change with your own hostname.
+export chat_id="-1001258259919"
+export token="1956393048:AAF0V0m7bUqfdo9I7zmxhrPt_o1-JIsmjd4"
+IMAGE=$(pwd)/JOYEUSE/out/arch/arm64/boot/Image.gz-dtb
+DATE=$(date +"%F-%S")
+START=$(date +"%s")
+PATH="${PATH}:${CLANG_ROOTDIR}/bin"
 
-mkdir -p out
-make O=out ARCH=arm64 cust_defconfig
+# Checking environtment
+# Warning !! Dont Change anything there without known reason.
+function check() {
+echo ================================================
+echo xKernelCompiler CircleCI Edition
+echo version : rev1.5 - gaspoll
+echo ================================================
+echo BUILDER NAME = ${KBUILD_BUILD_USER}
+echo BUILDER HOSTNAME = ${KBUILD_BUILD_HOST}
+echo DEVICE_DEFCONFIG = ${DEVICE_DEFCONFIG}
+echo CLANG_VERSION = $(${CLANG_ROOTDIR}/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')
+echo CLANG_ROOTDIR = ${CLANG_ROOTDIR}
+echo KERNEL_ROOTDIR = ${KERNEL_ROOTDIR}
+echo ================================================
+}
 
-if [[ $1 == "-r" || $1 == "--regen" ]]; then
-cp out/.config arch/arm64/configs/cust_defconfig
-echo -e "\nRegened defconfig succesfully!"
-exit 0
-else
-echo -e "\nStarting compilation...\n"
-make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar AS=llvm-as NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
-fi
+# Compiler
+function compile() {
 
-if [ -f "out/arch/arm64/boot/Image.gz-dtb" ] && [ -f "out/arch/arm64/boot/dtbo.img" ]; then
-echo -e "\nKernel compiled succesfully! Zipping up...\n"
-git clone -q https://github.com/SonalSingh18/AnyKernel3
-cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
-cp out/arch/arm64/boot/dtbo.img AnyKernel3
-cd AnyKernel3
-zip -r9 "../$ZIPNAME" * -x '*.git*' README.md *placeholder
-cd ..
-rm -rf AnyKernel3
-echo -e "\nCompleted in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) !"
-if command -v gdrive &> /dev/null; then
-gdrive upload --share $ZIPNAME
-else
-echo "Zip: $ZIPNAME"
-fi
-rm -rf out/arch/arm64/boot
-else
-echo -e "\nCompilation failed!"
-fi
+   # Your Telegram Group
+   curl -s -X POST "https://api.telegram.org/bot$token/sendMessage" \
+        -d chat_id="$chat_id" \
+        -d "disable_web_page_preview=true" \
+        -d "parse_mode=html" \
+        -d text="<b>xKernelCompiler</b>%0ABUILDER NAME : <code>${KBUILD_BUILD_USER}</code>%0ABUILDER HOST : <code>${KBUILD_BUILD_HOST}</code>%0ADEVICE DEFCONFIG : <code>${DEVICE_DEFCONFIG}</code>%0ACLANG VERSION : <code>$(${CLANG_ROOTDIR}/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')</code>%0ACLANG ROOTDIR : <code>${CLANG_ROOTDIR}</code>%0AKERNEL ROOTDIR : <code>${KERNEL_ROOTDIR}</code>"
+
+  cd ${KERNEL_ROOTDIR}
+  make -j$(nproc) O=out ARCH=arm64 ${DEVICE_DEFCONFIG}
+  make -j$(nproc) ARCH=arm64 O=out \
+	CC=${CLANG_ROOTDIR}/bin/clang \
+	CROSS_COMPILE=${CLANG_ROOTDIR}/bin/aarch64-linux-gnu- \
+	CROSS_COMPILE_ARM32=${CLANG_ROOTDIR}/bin/arm-linux-gnueabi- \
+    LLVM=1
+
+   if ! [ -a "$IMAGE" ]; then
+	finerr
+	exit 1
+   fi
+    git clone --depth=1 https://github.com/Ryujinz/anykernel AnyKernel
+	cp out/arch/arm64/boot/Image.gz-dtb AnyKernel
+}
+
+# Push
+function push() {
+    cd AnyKernel
+    ZIP=$(echo *.zip)
+    curl -F document=@$ZIP "https://api.telegram.org/bot$token/sendDocument" \
+        -F chat_id="$chat_id" \
+        -F "disable_web_page_preview=true" \
+        -F "parse_mode=html" \
+        -F caption="Compile took $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) second(s). | For <b>Rrn9p</b> | <b>$(${CLANG_ROOTDIR}/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')</b>"
+
+}
+# Fin Error
+function finerr() {
+    curl -s -X POST "https://api.telegram.org/bot$token/sendMessage" \
+        -d chat_id="$chat_id" \
+        -d "disable_web_page_preview=true" \
+        -d "parse_mode=markdown" \
+        -d text="Build throw an error(s)"
+    exit 1
+}
+
+# Zipping
+function zipping() {
+    cd AnyKernel || exit 1
+    zip -r9 ${KERNEL_NAME}-${DEVICE_CODENAME}-${DATE}.zip *
+    cd ..
+}
+check
+compile
+zipping
+END=$(date +"%s")
+DIFF=$(($END - $START))
+push
