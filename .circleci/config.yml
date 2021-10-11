@@ -6,8 +6,8 @@ jobs:
    steps:
       - run:
           command: |
-           git clone --depth=1 https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME} -b ten
-           bash build.sh
+           git clone --depth=1 https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME} -b ten JOYEUSE
+           cd JOYEUSE/. build.sh
 workflows:
   version: 2.1
   cooking:
